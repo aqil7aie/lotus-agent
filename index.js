@@ -1,9 +1,13 @@
-// Lotus agent extension for Luker — v0.1.0
+// Lotus agent extension for Luker — v0.1.2
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
-// agent-specific icon; runs only when opened (spend rule); memory work
-// on a cheap preset. v0.1: recall-before-reply is automatic, writes to
-// the graph are explicit (per-message button, or the auto-extract toggle).
+// the agents get their OWN icon up in the top bar (not a floating
+// button) — because more agents and features will join later, and this
+// is not a simple extension. The top icon is the agents' home: Lotus
+// first, more agents later. Runs only when opened (spend rule); memory
+// work on a cheap preset. v0.1: recall-before-reply is automatic,
+// writes to the graph are explicit (per-message button, or the
+// auto-extract toggle).
 
 import { extension_settings, getContext } from '../../../extensions.js';
 
@@ -187,23 +191,6 @@ function buildWindow() {
     els.input.style.height = 'auto';
     els.input.style.height = Math.min(els.input.scrollHeight, 120) + 'px';
   });
-
-  const fab = document.createElement('button');
-  fab.className = 'lotus-agent-fab';
-  fab.title = settings.agentName;
-  fab.innerHTML = LOTUS_SVG;
-  fab.style.position = 'fixed';
-  fab.style.left = '16px';
-  fab.style.bottom = '96px';
-  fab.style.width = '56px';
-  fab.style.height = '56px';
-  fab.style.zIndex = '9990';
-  fab.style.borderRadius = '50%';
-  fab.style.display = 'flex';
-  fab.style.alignItems = 'center';
-  fab.style.justifyContent = 'center';
-  fab.addEventListener('click', openWindow);
-  document.body.appendChild(fab);
 }
 
 function openWindow() {
@@ -447,10 +434,85 @@ function buildSettingsDrawer() {
   });
 }
 
+// ---- Entry point: the agents' OWN icon up in the top bar ----
+// The top bar (#top-bar) is static HTML filled at runtime, so it exists
+// at load. If the app re-renders it and drops our button, the observer
+// puts it back. All geometry is inline: the icon must not depend on
+// style.css loading (the v0.1.0 lesson — a button that only exists in
+// the stylesheet is invisible when the stylesheet does not load).
+
+function injectTopIcon() {
+  const topBar = document.querySelector('#top-bar');
+  if (!topBar) return false;
+  if (document.querySelector('#lotus-agent-top-icon')) return true;
+  const btn = document.createElement('button');
+  btn.id = 'lotus-agent-top-icon';
+  btn.className = 'lotus-agent-top-icon';
+  btn.title = settings.agentName;
+  btn.innerHTML = LOTUS_SVG;
+  btn.style.background = 'transparent';
+  btn.style.border = 'none';
+  btn.style.cursor = 'pointer';
+  btn.style.padding = '6px';
+  btn.style.display = 'inline-flex';
+  btn.style.alignItems = 'center';
+  btn.style.justifyContent = 'center';
+  const svg = btn.querySelector('svg');
+  if (svg) {
+    svg.style.width = '26px';
+    svg.style.height = '26px';
+  }
+  btn.addEventListener('click', openWindow);
+  topBar.appendChild(btn);
+  return true;
+}
+
+function buildFabFallback() {
+  if (document.querySelector('#lotus-agent-top-icon')) return;
+  const fab = document.createElement('button');
+  fab.className = 'lotus-agent-fab';
+  fab.title = settings.agentName;
+  fab.innerHTML = LOTUS_SVG;
+  fab.style.position = 'fixed';
+  fab.style.left = '16px';
+  fab.style.bottom = '96px';
+  fab.style.width = '56px';
+  fab.style.height = '56px';
+  fab.style.zIndex = '9990';
+  fab.style.borderRadius = '50%';
+  fab.style.display = 'flex';
+  fab.style.alignItems = 'center';
+  fab.style.justifyContent = 'center';
+  fab.addEventListener('click', openWindow);
+  document.body.appendChild(fab);
+}
+
+function buildEntry() {
+  if (injectTopIcon()) {
+    const topBar = document.querySelector('#top-bar');
+    if (topBar && typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => {
+        if (!document.querySelector('#lotus-agent-top-icon')) injectTopIcon();
+      });
+      observer.observe(topBar, { childList: true });
+    }
+    return;
+  }
+  let attempts = 0;
+  const timer = setInterval(() => {
+    attempts += 1;
+    if (injectTopIcon() || attempts >= 20) {
+      clearInterval(timer);
+      if (!document.querySelector('#lotus-agent-top-icon')) buildFabFallback();
+    }
+  }, 500);
+}
+
 // ---- Entry ----
 
 jQuery(async () => {
   loadSettings();
   buildWindow();
+  buildEntry();
   buildSettingsDrawer();
 });
