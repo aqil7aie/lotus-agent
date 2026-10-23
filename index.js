@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.2.0
+// Lotus agent extension for Luker — v0.2.1
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -140,6 +140,7 @@ function buildWindow() {
   backdrop.style.position = 'fixed';
   backdrop.style.inset = '0';
   backdrop.style.zIndex = '9991';
+  backdrop.style.display = 'none';
 
   const win = document.createElement('div');
   win.className = 'lotus-agent-window';
@@ -160,13 +161,27 @@ function buildWindow() {
   win.style.resize = 'both';
   win.style.overflow = 'auto';
   win.style.zIndex = '9992';
+  win.style.display = 'none';
+  win.style.flexDirection = 'column';
+  // Lotus app window design (from 9.11S .chatwin, light theme) — worn
+  // explicitly, never inherited from Luker's theme: sage-grey bg, ink
+  // text, soft outer shadow. The identity is a floating white PILL over
+  // the conversation (his law: floating, NO header bar), not a bar.
+  win.style.background = '#eef0ee';
+  win.style.color = '#1d1f1c';
+  win.style.borderRadius = '24px';
+  win.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(29, 31, 28, 0.09)';
   win.innerHTML = `
-    <div class="lotus-agent-pill">
-      <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
-      <div class="lotus-agent-name" id="lotus-agent-name"></div>
-      <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
-      <button class="lotus-agent-max" id="lotus-agent-max" title="تكبير / استعادة">⛶</button>
-      <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
+    <div class="lotus-agent-float-top">
+      <div class="lotus-agent-pill" id="lotus-agent-pill">
+        <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
+        <div class="lotus-agent-name" id="lotus-agent-name"></div>
+        <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
+      </div>
+      <div class="lotus-agent-corners">
+        <button class="lotus-agent-max" id="lotus-agent-max" title="تكبير / استعادة">⛶</button>
+        <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
+      </div>
     </div>
     <div class="lotus-agent-messages" id="lotus-agent-messages"></div>
     <div class="lotus-agent-composer">
@@ -190,7 +205,7 @@ function buildWindow() {
   els.name.textContent = settings.agentName;
   els.close = win.querySelector('#lotus-agent-close');
   els.close.addEventListener('click', closeWindow);
-  els.pill = win.querySelector('.lotus-agent-pill');
+  els.pill = win.querySelector('#lotus-agent-pill');
   els.max = win.querySelector('#lotus-agent-max');
   els.max.addEventListener('click', toggleMaximize);
   els.pill.style.touchAction = 'none';
@@ -211,8 +226,8 @@ function buildWindow() {
 }
 
 function openWindow() {
-  els.backdrop.classList.add('open');
-  els.win.classList.add('open');
+  els.backdrop.style.display = 'block';
+  els.win.style.display = 'flex';
   renderMessages();
   els.input.focus();
   getMemorySession().then((session) => {
@@ -221,8 +236,8 @@ function openWindow() {
 }
 
 function closeWindow() {
-  els.backdrop.classList.remove('open');
-  els.win.classList.remove('open');
+  els.backdrop.style.display = 'none';
+  els.win.style.display = 'none';
 }
 
 // ---- Floating window: drag by the pill row, maximize / restore ----
@@ -296,7 +311,21 @@ function renderMessages() {
   history.forEach((msg, index) => {
     const div = document.createElement('div');
     div.className = `lotus-agent-msg ${msg.role}`;
-    div.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
+    const body = document.createElement('div');
+    body.className = 'lotus-agent-body';
+    body.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
+    if (msg.role === 'assistant') {
+      const avatar = document.createElement('div');
+      avatar.className = 'lotus-agent-mini-avatar';
+      avatar.innerHTML = LOTUS_SVG;
+      const content = document.createElement('div');
+      content.className = 'lotus-agent-content';
+      content.appendChild(body);
+      div.appendChild(avatar);
+      div.appendChild(content);
+    } else {
+      div.appendChild(body);
+    }
     if (msg.role === 'assistant' && index > 0) {
       const btn = document.createElement('button');
       btn.className = 'lotus-agent-remember';
@@ -315,7 +344,7 @@ function renderMessages() {
           btn.textContent = 'فشل الحفظ — أعد المحاولة';
         }
       });
-      div.appendChild(btn);
+      div.querySelector('.lotus-agent-content').appendChild(btn);
     }
     els.messages.appendChild(div);
   });
