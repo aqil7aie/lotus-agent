@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.3.0
+// Lotus agent extension for Luker — v0.3.1
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -159,7 +159,12 @@ function buildWindow() {
   win.style.maxHeight = 'none';
   win.style.resize = 'none';
   win.style.overflow = 'hidden';
-  win.style.zIndex = '3000';
+  // v0.3.1: back above everything (9992, like the proven floating
+  // window). v0.3.0 dropped this to 3000 to sit under the top bar —
+  // but Luker's own layers live at 3000-3005, so the panel sank under
+  // them and nothing showed. The panel still starts BELOW the bar
+  // (measured top), so it never overlaps the bar anyway.
+  win.style.zIndex = '9992';
   win.style.display = 'none';
   win.style.flexDirection = 'column';
   win.style.background = '#eef0ee';
@@ -251,16 +256,23 @@ function buildWindow() {
 }
 
 function openWindow() {
-  if (isPanel) applyPanel();
-  else applyFloating();
+  try {
+    if (isPanel) applyPanel();
+    else applyFloating();
+  } catch (error) {
+    // If the panel geometry fails for any reason, fall back to the
+    // floating card that provably rendered in v0.2.x — never nothing.
+    applyFloating();
+  }
   els.win.style.display = 'flex';
+  setIconActive(true);
   renderMessages();
   // Diagnostic strip: version + message count + height + mode. If this
   // strip is absent, the update never reached the app.
   const diag = els.win.querySelector('#lotus-agent-diag');
   if (diag) {
     const height = Math.round(els.win.getBoundingClientRect().height || 0);
-    diag.textContent = `v0.3.0 • رسائل: ${history.length} • ارتفاع: ${height}px • ${isPanel ? 'لوحة' : 'عائمة'}`;
+    diag.textContent = `v0.3.1 • رسائل: ${history.length} • ارتفاع: ${height}px • ${isPanel ? 'لوحة' : 'عائمة'}`;
   }
   els.input.focus();
   getMemorySession().then((session) => {
@@ -270,6 +282,15 @@ function openWindow() {
 
 function closeWindow() {
   els.win.style.display = 'none';
+  setIconActive(false);
+}
+
+// The top icon lights up while the window is open: if a press tints
+// the icon but no window appears, the click runs and the window is
+// hidden — if it never tints, the click never fires. One-word report.
+function setIconActive(active) {
+  const icon = document.querySelector('#lotus-agent-top-icon');
+  if (icon) icon.style.background = active ? 'rgba(188, 69, 31, 0.25)' : 'transparent';
 }
 
 function toggleWindow() {
@@ -299,7 +320,7 @@ function applyPanel() {
   els.win.style.borderRadius = '0';
   els.win.style.boxShadow = 'none';
   els.win.style.resize = 'none';
-  els.win.style.zIndex = '3000';
+  els.win.style.zIndex = '9992';
   els.max.textContent = '⤢';
   isPanel = true;
 }
