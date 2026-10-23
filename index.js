@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.2.1
+// Lotus agent extension for Luker — v0.2.2
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -68,7 +68,8 @@ function escapeHtml(text) {
 }
 
 function setMemoryStatus(text) {
-  if (els.status) els.status.textContent = text;
+  // Command readout: agent + connection profile + memory, live.
+  if (els.status) els.status.textContent = `${text} • ${settings.chatPreset || 'بدون بروفايل'}`;
 }
 
 // ---- Memory Graph (session facade; never import memory-graph files) ----
@@ -172,7 +173,7 @@ function buildWindow() {
   win.style.borderRadius = '24px';
   win.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(29, 31, 28, 0.09)';
   win.innerHTML = `
-    <div class="lotus-agent-float-top">
+    <div class="lotus-agent-toprow">
       <div class="lotus-agent-pill" id="lotus-agent-pill">
         <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
         <div class="lotus-agent-name" id="lotus-agent-name"></div>
@@ -188,6 +189,29 @@ function buildWindow() {
       <textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea>
       <button class="lotus-agent-send" id="lotus-agent-send" title="إرسال">➤</button>
     </div>`;
+  // v0.2.2: every visible style is inline — the window must not depend
+  // on style.css loading or on absolute positioning in the APK WebView.
+  const toprow = win.querySelector('.lotus-agent-toprow');
+  toprow.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 12px 0;flex-shrink:0;';
+  const pill = win.querySelector('#lotus-agent-pill');
+  pill.style.cssText = 'display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);padding:5px 6px 5px 14px;cursor:grab;touch-action:none;';
+  const avatar = pill.querySelector('.lotus-agent-avatar');
+  avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#fdf6ec;border:1px solid rgba(29,31,28,0.09);display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+  avatar.querySelector('svg').style.cssText = 'width:20px;height:20px;';
+  const pillName = win.querySelector('#lotus-agent-name');
+  pillName.style.cssText = 'font-weight:700;font-size:15px;color:#1d1f1c;';
+  const pillStatus = win.querySelector('#lotus-agent-status');
+  pillStatus.style.cssText = 'font-size:12px;color:#70746c;';
+  const corners = win.querySelector('.lotus-agent-corners');
+  corners.style.cssText = 'display:flex;gap:8px;flex-shrink:0;';
+  const composer = win.querySelector('.lotus-agent-composer');
+  composer.style.cssText = 'display:flex;gap:4px;align-items:flex-end;background:#ffffff;border:1px solid #ffffff;border-radius:28px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);padding:6px;margin:8px 12px 12px;flex-shrink:0;';
+  const input = win.querySelector('#lotus-agent-input');
+  input.style.cssText = 'flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;color:#1d1f1c;padding:8px 9px;font-size:16px;line-height:24px;max-height:120px;';
+  const send = win.querySelector('#lotus-agent-send');
+  send.style.cssText = 'border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;background:#2f7cf6;color:#ffffff;font-size:18px;flex-shrink:0;display:grid;place-items:center;';
+  const messages = win.querySelector('#lotus-agent-messages');
+  messages.style.cssText = 'flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;gap:18px;';
 
   document.body.appendChild(backdrop);
   document.body.appendChild(win);
@@ -315,15 +339,22 @@ function renderMessages() {
     body.className = 'lotus-agent-body';
     body.innerHTML = escapeHtml(msg.text).replace(/\n/g, '<br>');
     if (msg.role === 'assistant') {
+      div.style.cssText = 'display:flex;gap:10px;align-self:flex-start;max-width:100%;';
       const avatar = document.createElement('div');
       avatar.className = 'lotus-agent-mini-avatar';
       avatar.innerHTML = LOTUS_SVG;
+      avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#fdf6ec;border:1px solid rgba(29,31,28,0.09);display:grid;place-items:center;flex-shrink:0;margin-top:2px;';
+      avatar.querySelector('svg').style.cssText = 'width:20px;height:20px;';
       const content = document.createElement('div');
       content.className = 'lotus-agent-content';
+      content.style.cssText = 'min-width:0;';
+      body.style.cssText = 'font-size:15.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;color:#1d1f1c;padding-top:3px;';
       content.appendChild(body);
       div.appendChild(avatar);
       div.appendChild(content);
     } else {
+      div.style.cssText = 'align-self:flex-end;max-width:85%;';
+      body.style.cssText = 'background:#23261f;color:#f4f4ec;padding:10px 16px;border-radius:22px;border-bottom-right-radius:6px;line-height:1.65;font-size:15.5px;white-space:pre-wrap;word-break:break-word;';
       div.appendChild(body);
     }
     if (msg.role === 'assistant' && index > 0) {
@@ -331,6 +362,7 @@ function renderMessages() {
       btn.className = 'lotus-agent-remember';
       btn.textContent = msg.saved ? 'تم الحفظ' : 'تذكّر هذا';
       btn.disabled = !!msg.saved;
+      btn.style.cssText = 'display:inline-block;margin-top:8px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;cursor:pointer;font-size:12px;color:#70746c;padding:4px 12px;';
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         btn.textContent = 'جارٍ الحفظ...';
