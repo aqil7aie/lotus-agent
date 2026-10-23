@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.2.2
+// Lotus agent extension for Luker — v0.2.3
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -188,7 +188,8 @@ function buildWindow() {
     <div class="lotus-agent-composer">
       <textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea>
       <button class="lotus-agent-send" id="lotus-agent-send" title="إرسال">➤</button>
-    </div>`;
+    </div>
+    <div class="lotus-agent-diag" id="lotus-agent-diag"></div>`;
   // v0.2.2: every visible style is inline — the window must not depend
   // on style.css loading or on absolute positioning in the APK WebView.
   const toprow = win.querySelector('.lotus-agent-toprow');
@@ -210,6 +211,8 @@ function buildWindow() {
   input.style.cssText = 'flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;color:#1d1f1c;padding:8px 9px;font-size:16px;line-height:24px;max-height:120px;';
   const send = win.querySelector('#lotus-agent-send');
   send.style.cssText = 'border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;background:#2f7cf6;color:#ffffff;font-size:18px;flex-shrink:0;display:grid;place-items:center;';
+  const diag = win.querySelector('#lotus-agent-diag');
+  diag.style.cssText = 'font-size:12px;color:#70746c;text-align:center;padding:2px 12px 8px;flex-shrink:0;';
   const messages = win.querySelector('#lotus-agent-messages');
   messages.style.cssText = 'flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;gap:18px;';
 
@@ -253,6 +256,14 @@ function openWindow() {
   els.backdrop.style.display = 'block';
   els.win.style.display = 'flex';
   renderMessages();
+  // Diagnostic line (v0.2.3): sits where painting provably works (under
+  // the composer) and reports which code is actually running + what it
+  // built. If this line is absent, the update never reached the app.
+  const diag = els.win.querySelector('#lotus-agent-diag');
+  if (diag) {
+    const height = Math.round(els.win.getBoundingClientRect().height || 0);
+    diag.textContent = `v0.2.3 • رسائل: ${history.length} • حبة: ${els.pill ? 'موجودة' : 'مفقودة'} • ارتفاع: ${height}px`;
+  }
   els.input.focus();
   getMemorySession().then((session) => {
     setMemoryStatus(session ? 'الذاكرة: متصلة' : 'الذاكرة: غير متاحة');

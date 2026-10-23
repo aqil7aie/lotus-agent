@@ -251,3 +251,13 @@
 .lotus-agent-send:disabled {
   opacity: 0.5;
 }
+
+/* Diagnostic line (v0.2.3): version + message count + pill presence +
+   window height, under the composer where painting provably works. */
+.lotus-agent-diag {
+  font-size: 12px;
+  color: #70746c;
+  text-align: center;
+  padding: 2px 12px 8px;
+  flex-shrink: 0;
+}
