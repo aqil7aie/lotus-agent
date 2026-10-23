@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.2.3
+// Lotus agent extension for Luker — v0.2.4
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -150,16 +150,21 @@ function buildWindow() {
   // (native resize handle), draggable by the pill row, maximizable.
   // All geometry inline — never depends on style.css loading.
   win.style.position = 'fixed';
-  win.style.left = '50%';
-  win.style.top = '50%';
-  win.style.transform = 'translate(-50%, -50%)';
-  win.style.width = 'min(92vw, 520px)';
-  win.style.height = 'min(78vh, 660px)';
-  win.style.minWidth = '300px';
-  win.style.minHeight = '420px';
-  win.style.maxWidth = '96vw';
-  win.style.maxHeight = '92vh';
-  win.style.resize = 'both';
+  // v0.2.4: opens FULL by default (a full page like Luker's own chat
+  // page, not a floating panel above everything). The toggle shrinks
+  // it back to a floating panel; size control is kept, not removed.
+  win.style.left = '0';
+  win.style.top = '0';
+  win.style.right = '0';
+  win.style.bottom = '0';
+  win.style.width = 'auto';
+  win.style.height = 'auto';
+  win.style.transform = 'none';
+  win.style.minWidth = '0';
+  win.style.minHeight = '0';
+  win.style.maxWidth = 'none';
+  win.style.maxHeight = 'none';
+  win.style.resize = 'none';
   win.style.overflow = 'auto';
   win.style.zIndex = '9992';
   win.style.display = 'none';
@@ -170,8 +175,8 @@ function buildWindow() {
   // the conversation (his law: floating, NO header bar), not a bar.
   win.style.background = '#eef0ee';
   win.style.color = '#1d1f1c';
-  win.style.borderRadius = '24px';
-  win.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(29, 31, 28, 0.09)';
+  win.style.borderRadius = '0';
+  win.style.boxShadow = 'none';
   win.innerHTML = `
     <div class="lotus-agent-toprow">
       <div class="lotus-agent-pill" id="lotus-agent-pill">
@@ -180,7 +185,7 @@ function buildWindow() {
         <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
       </div>
       <div class="lotus-agent-corners">
-        <button class="lotus-agent-max" id="lotus-agent-max" title="تكبير / استعادة">⛶</button>
+        <button class="lotus-agent-max" id="lotus-agent-max" title="تصغير / تكبير">⤢</button>
         <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
       </div>
     </div>
@@ -256,13 +261,13 @@ function openWindow() {
   els.backdrop.style.display = 'block';
   els.win.style.display = 'flex';
   renderMessages();
-  // Diagnostic line (v0.2.3): sits where painting provably works (under
+  // Diagnostic line: sits where painting provably works (under
   // the composer) and reports which code is actually running + what it
   // built. If this line is absent, the update never reached the app.
   const diag = els.win.querySelector('#lotus-agent-diag');
   if (diag) {
     const height = Math.round(els.win.getBoundingClientRect().height || 0);
-    diag.textContent = `v0.2.3 • رسائل: ${history.length} • حبة: ${els.pill ? 'موجودة' : 'مفقودة'} • ارتفاع: ${height}px`;
+    diag.textContent = `v0.2.4 • رسائل: ${history.length} • حبة: ${els.pill ? 'موجودة' : 'مفقودة'} • ارتفاع: ${height}px`;
   }
   els.input.focus();
   getMemorySession().then((session) => {
@@ -275,39 +280,52 @@ function closeWindow() {
   els.win.style.display = 'none';
 }
 
-// ---- Floating window: drag by the pill row, maximize / restore ----
+// ---- Full / floating window states (v0.2.4: opens full) ----
 
-let savedRect = null;
+let isFull = true;
+
+function applyFull() {
+  els.win.style.transform = 'none';
+  els.win.style.left = '0';
+  els.win.style.top = '0';
+  els.win.style.right = '0';
+  els.win.style.bottom = '0';
+  els.win.style.width = 'auto';
+  els.win.style.height = 'auto';
+  els.win.style.borderRadius = '0';
+  els.win.style.boxShadow = 'none';
+  els.win.style.resize = 'none';
+  els.max.textContent = '⤢';
+  isFull = true;
+}
+
+function applyFloating() {
+  els.win.style.transform = 'translate(-50%, -50%)';
+  els.win.style.left = '50%';
+  els.win.style.top = '50%';
+  els.win.style.right = 'auto';
+  els.win.style.bottom = 'auto';
+  els.win.style.width = 'min(92vw, 520px)';
+  els.win.style.height = 'min(78vh, 660px)';
+  els.win.style.minWidth = '300px';
+  els.win.style.minHeight = '420px';
+  els.win.style.maxWidth = '96vw';
+  els.win.style.maxHeight = '92vh';
+  els.win.style.borderRadius = '24px';
+  els.win.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(29, 31, 28, 0.09)';
+  els.win.style.resize = 'both';
+  els.max.textContent = '⛶';
+  isFull = false;
+}
 
 function toggleMaximize() {
-  if (savedRect) {
-    els.win.style.left = savedRect.left;
-    els.win.style.top = savedRect.top;
-    els.win.style.width = savedRect.width;
-    els.win.style.height = savedRect.height;
-    els.win.style.transform = savedRect.transform;
-    savedRect = null;
-    els.max.textContent = '⛶';
-    return;
-  }
-  savedRect = {
-    left: els.win.style.left,
-    top: els.win.style.top,
-    width: els.win.style.width,
-    height: els.win.style.height,
-    transform: els.win.style.transform,
-  };
-  els.win.style.transform = 'none';
-  els.win.style.left = '12px';
-  els.win.style.top = '12px';
-  els.win.style.width = 'calc(100vw - 24px)';
-  els.win.style.height = 'calc(100vh - 24px)';
-  els.max.textContent = '⤢';
+  if (isFull) applyFloating();
+  else applyFull();
 }
 
 function onPillDragStart(event) {
   if (event.target.closest('#lotus-agent-close, #lotus-agent-max')) return;
-  if (savedRect) return;
+  if (isFull) return;
   const rect = els.win.getBoundingClientRect();
   els.win.style.transform = 'none';
   els.win.style.left = rect.left + 'px';
