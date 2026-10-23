@@ -131,10 +131,21 @@ function buildWindow() {
   const backdrop = document.createElement('div');
   backdrop.className = 'lotus-agent-backdrop';
   backdrop.id = 'lotus-agent-backdrop';
+  // Critical geometry inline: the button/window must position even if
+  // style.css fails to load for any reason (v0.1.1 hardening).
+  backdrop.style.position = 'fixed';
+  backdrop.style.inset = '0';
+  backdrop.style.zIndex = '9991';
 
   const win = document.createElement('div');
   win.className = 'lotus-agent-window';
   win.id = 'lotus-agent-window';
+  win.style.position = 'fixed';
+  win.style.left = '12px';
+  win.style.right = '12px';
+  win.style.top = '12px';
+  win.style.bottom = '12px';
+  win.style.zIndex = '9992';
   win.innerHTML = `
     <div class="lotus-agent-pill">
       <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
@@ -181,6 +192,16 @@ function buildWindow() {
   fab.className = 'lotus-agent-fab';
   fab.title = settings.agentName;
   fab.innerHTML = LOTUS_SVG;
+  fab.style.position = 'fixed';
+  fab.style.left = '16px';
+  fab.style.bottom = '96px';
+  fab.style.width = '56px';
+  fab.style.height = '56px';
+  fab.style.zIndex = '9990';
+  fab.style.borderRadius = '50%';
+  fab.style.display = 'flex';
+  fab.style.alignItems = 'center';
+  fab.style.justifyContent = 'center';
   fab.addEventListener('click', openWindow);
   document.body.appendChild(fab);
 }
@@ -332,11 +353,12 @@ function buildSettingsDrawer() {
         <label>اسم الإيجنت
           <input type="text" id="lotus-agent-set-name" value="${escapeHtml(settings.agentName)}">
         </label>
-        <label>بروفايل الاتصال للدردشة (فارغ = الحالي)
-          <input type="text" id="lotus-agent-set-chat" value="${escapeHtml(settings.chatPreset)}" placeholder="مثال: deepseek">
+        <label>بروفايل الاتصال للدردشة (اختر من المحفوظة — البروفايل = المزوّد + النموذج + المفتاح)
+          <select id="lotus-agent-set-chat"></select>
         </label>
-        <label>بريست رخيص لشغل الذاكرة (فارغ = الحالي)
-          <input type="text" id="lotus-agent-set-memory" value="${escapeHtml(settings.memoryPreset)}" placeholder="مثال: low-temp">
+        <p id="lotus-agent-profiles-note" style="opacity:0.7;font-size:12px"></p>
+        <label>بريست رخيص لشغل الذاكرة (اختر من المحفوظة — البريست = طريقة التوليد)
+          <select id="lotus-agent-set-memory"></select>
         </label>
         <label>
           <input type="checkbox" id="lotus-agent-set-memory-on" ${settings.memoryEnabled ? 'checked' : ''}>
@@ -357,13 +379,64 @@ function buildSettingsDrawer() {
     saveSettings();
   });
   drawer.querySelector('#lotus-agent-set-chat').addEventListener('change', (e) => {
-    settings.chatPreset = e.target.value.trim();
+    settings.chatPreset = e.target.value;
     saveSettings();
   });
   drawer.querySelector('#lotus-agent-set-memory').addEventListener('change', (e) => {
-    settings.memoryPreset = e.target.value.trim();
+    settings.memoryPreset = e.target.value;
     saveSettings();
   });
+
+  // Populate the dropdowns from Luker's own saved lists (v0.1.1: no more
+  // blind typing). Refreshed on load and whenever the drawer is opened,
+  // so a profile saved after load still shows up.
+  const refreshProfileSelects = () => {
+    const chatSel = drawer.querySelector('#lotus-agent-set-chat');
+    const memSel = drawer.querySelector('#lotus-agent-set-memory');
+    const note = drawer.querySelector('#lotus-agent-profiles-note');
+    const fill = (sel, names, current) => {
+      const seen = new Set(['']);
+      sel.innerHTML = '';
+      const currentOpt = document.createElement('option');
+      currentOpt.value = '';
+      currentOpt.textContent = '(الحالي)';
+      sel.appendChild(currentOpt);
+      seen.add('');
+      const all = [...names];
+      if (current && !all.includes(current)) all.push(current);
+      all.forEach((name) => {
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+      sel.value = current || '';
+    };
+    try {
+      const context = getContext();
+      const profiles = context?.connectionProfiles?.list?.() || [];
+      const profileNames = profiles.map((p) => p?.name).filter(Boolean);
+      fill(chatSel, profileNames, settings.chatPreset);
+      note.textContent = profileNames.length === 0
+        ? 'ما كو بروفايلات محفوظة بعد — احفظ واحد من Connection Profile أولاً، وبعدين ارجع افتح هالدرج واختاره.'
+        : '';
+    } catch {
+      fill(chatSel, [], settings.chatPreset);
+    }
+    try {
+      const context = getContext();
+      const presets = context?.presets?.list?.('openai') || [];
+      const presetNames = presets.map((p) => p?.name).filter(Boolean);
+      fill(memSel, presetNames, settings.memoryPreset);
+    } catch {
+      fill(memSel, [], settings.memoryPreset);
+    }
+  };
+  refreshProfileSelects();
+  const toggle = drawer.querySelector('.inline-drawer-toggle');
+  if (toggle) toggle.addEventListener('click', () => setTimeout(refreshProfileSelects, 0));
   drawer.querySelector('#lotus-agent-set-memory-on').addEventListener('change', (e) => {
     settings.memoryEnabled = e.target.checked;
     saveSettings();
