@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.2.4
+// Lotus agent extension for Luker — v0.3.0
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -133,30 +133,23 @@ async function rememberText(text) {
 // ---- Window (Lotus window: floating, no header bar) ----
 
 function buildWindow() {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'lotus-agent-backdrop';
-  backdrop.id = 'lotus-agent-backdrop';
-  // Critical geometry inline: the button/window must position even if
-  // style.css fails to load for any reason (v0.1.1 hardening).
-  backdrop.style.position = 'fixed';
-  backdrop.style.inset = '0';
-  backdrop.style.zIndex = '9991';
-  backdrop.style.display = 'none';
-
   const win = document.createElement('div');
   win.className = 'lotus-agent-window';
   win.id = 'lotus-agent-window';
-  // Floating window (v0.2.0): centered panel, resizable from the corner
-  // (native resize handle), draggable by the pill row, maximizable.
+  // v0.3.0 frame — TauriTavern Copilot measurements, Lotus colors.
+  // Copilot does not float and does not go fullscreen: it takes over a
+  // panel BELOW the host's top bar (toolbar kept, mobile insets kept),
+  // 100dvh tall, flex column. So this window is a PANEL by default:
+  // it starts below Luker's top bar (measured at open, never guessed),
+  // so its top row can never hide under the status bar or top bar —
+  // the exact failure of every floating/full version before it.
+  // A toggle still shrinks it to a floating card (size control kept).
   // All geometry inline — never depends on style.css loading.
   win.style.position = 'fixed';
-  // v0.2.4: opens FULL by default (a full page like Luker's own chat
-  // page, not a floating panel above everything). The toggle shrinks
-  // it back to a floating panel; size control is kept, not removed.
   win.style.left = '0';
-  win.style.top = '0';
   win.style.right = '0';
   win.style.bottom = '0';
+  win.style.top = '56px';
   win.style.width = 'auto';
   win.style.height = 'auto';
   win.style.transform = 'none';
@@ -165,67 +158,70 @@ function buildWindow() {
   win.style.maxWidth = 'none';
   win.style.maxHeight = 'none';
   win.style.resize = 'none';
-  win.style.overflow = 'auto';
-  win.style.zIndex = '9992';
+  win.style.overflow = 'hidden';
+  win.style.zIndex = '3000';
   win.style.display = 'none';
   win.style.flexDirection = 'column';
-  // Lotus app window design (from 9.11S .chatwin, light theme) — worn
-  // explicitly, never inherited from Luker's theme: sage-grey bg, ink
-  // text, soft outer shadow. The identity is a floating white PILL over
-  // the conversation (his law: floating, NO header bar), not a bar.
   win.style.background = '#eef0ee';
   win.style.color = '#1d1f1c';
   win.style.borderRadius = '0';
   win.style.boxShadow = 'none';
   win.innerHTML = `
-    <div class="lotus-agent-toprow">
-      <div class="lotus-agent-pill" id="lotus-agent-pill">
+    <div class="lotus-agent-header" id="lotus-agent-header">
+      <div class="lotus-agent-brand">
         <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
         <div class="lotus-agent-name" id="lotus-agent-name"></div>
         <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
       </div>
-      <div class="lotus-agent-corners">
-        <button class="lotus-agent-max" id="lotus-agent-max" title="تصغير / تكبير">⤢</button>
+      <div class="lotus-agent-actions">
+        <button class="lotus-agent-max" id="lotus-agent-max" title="عائمة / لوحة">⤢</button>
         <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
       </div>
     </div>
     <div class="lotus-agent-messages" id="lotus-agent-messages"></div>
-    <div class="lotus-agent-composer">
-      <textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea>
-      <button class="lotus-agent-send" id="lotus-agent-send" title="إرسال">➤</button>
-    </div>
-    <div class="lotus-agent-diag" id="lotus-agent-diag"></div>`;
-  // v0.2.2: every visible style is inline — the window must not depend
-  // on style.css loading or on absolute positioning in the APK WebView.
-  const toprow = win.querySelector('.lotus-agent-toprow');
-  toprow.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px 12px 0;flex-shrink:0;';
-  const pill = win.querySelector('#lotus-agent-pill');
-  pill.style.cssText = 'display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);padding:5px 6px 5px 14px;cursor:grab;touch-action:none;';
-  const avatar = pill.querySelector('.lotus-agent-avatar');
+    <div class="lotus-agent-bottom">
+      <div class="lotus-agent-status-strip" id="lotus-agent-diag"></div>
+      <div class="lotus-agent-composer">
+        <textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea>
+        <button class="lotus-agent-send" id="lotus-agent-send" title="إرسال">➤</button>
+      </div>
+    </div>`;
+  // Copilot measurements, inline: header 13/12/11/16 + bottom border,
+  // 30px action buttons; messages 24/20/28, 22px gaps; bottom 0/12/8;
+  // composer 17px radius, 12/12/9 padding; status strip above composer.
+  const header = win.querySelector('#lotus-agent-header');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;flex:0 0 auto;padding:13px 12px 11px 16px;border-bottom:1px solid rgba(29,31,28,0.09);flex-shrink:0;cursor:grab;touch-action:none;';
+  const brand = win.querySelector('.lotus-agent-brand');
+  brand.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow:hidden;';
+  const avatar = brand.querySelector('.lotus-agent-avatar');
   avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#fdf6ec;border:1px solid rgba(29,31,28,0.09);display:flex;align-items:center;justify-content:center;flex-shrink:0;';
   avatar.querySelector('svg').style.cssText = 'width:20px;height:20px;';
-  const pillName = win.querySelector('#lotus-agent-name');
-  pillName.style.cssText = 'font-weight:700;font-size:15px;color:#1d1f1c;';
-  const pillStatus = win.querySelector('#lotus-agent-status');
-  pillStatus.style.cssText = 'font-size:12px;color:#70746c;';
-  const corners = win.querySelector('.lotus-agent-corners');
-  corners.style.cssText = 'display:flex;gap:8px;flex-shrink:0;';
+  const brandName = win.querySelector('#lotus-agent-name');
+  brandName.style.cssText = 'font-weight:600;font-size:16px;color:#1d1f1c;white-space:nowrap;';
+  const brandStatus = win.querySelector('#lotus-agent-status');
+  brandStatus.style.cssText = 'font-size:12px;color:#70746c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  const actions = win.querySelector('.lotus-agent-actions');
+  actions.style.cssText = 'display:flex;gap:2px;flex-shrink:0;';
+  const maxBtn = win.querySelector('#lotus-agent-max');
+  const closeBtn = win.querySelector('#lotus-agent-close');
+  maxBtn.style.cssText = 'width:30px;height:30px;padding:0;color:#70746c;background:transparent;border:none;border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:18px;flex-shrink:0;';
+  closeBtn.style.cssText = 'width:30px;height:30px;padding:0;color:#70746c;background:transparent;border:none;border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:18px;flex-shrink:0;';
+  const bottom = win.querySelector('.lotus-agent-bottom');
+  bottom.style.cssText = 'flex:0 0 auto;padding:0 12px 8px;flex-shrink:0;';
+  const strip = win.querySelector('#lotus-agent-diag');
+  strip.style.cssText = 'display:flex;align-items:center;gap:9px;margin:0 -12px 7px;padding:9px 13px 8px;font-size:12.8px;color:#70746c;border-bottom:1px solid rgba(29,31,28,0.08);';
   const composer = win.querySelector('.lotus-agent-composer');
-  composer.style.cssText = 'display:flex;gap:4px;align-items:flex-end;background:#ffffff;border:1px solid #ffffff;border-radius:28px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);padding:6px;margin:8px 12px 12px;flex-shrink:0;';
+  composer.style.cssText = 'display:flex;gap:4px;align-items:flex-end;background:#ffffff;border:1px solid rgba(29,31,28,0.10);border-radius:17px;padding:12px 12px 9px;box-shadow:0 1px 3px rgba(0,0,0,0.15),inset 0 1px 0 rgba(29,31,28,0.03);';
   const input = win.querySelector('#lotus-agent-input');
   input.style.cssText = 'flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;color:#1d1f1c;padding:8px 9px;font-size:16px;line-height:24px;max-height:120px;';
   const send = win.querySelector('#lotus-agent-send');
   send.style.cssText = 'border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;background:#2f7cf6;color:#ffffff;font-size:18px;flex-shrink:0;display:grid;place-items:center;';
-  const diag = win.querySelector('#lotus-agent-diag');
-  diag.style.cssText = 'font-size:12px;color:#70746c;text-align:center;padding:2px 12px 8px;flex-shrink:0;';
   const messages = win.querySelector('#lotus-agent-messages');
-  messages.style.cssText = 'flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;gap:18px;';
+  messages.style.cssText = 'flex:1;overflow-y:auto;padding:24px 20px 28px;display:flex;flex-direction:column;gap:22px;min-height:0;';
 
-  document.body.appendChild(backdrop);
   document.body.appendChild(win);
 
   els = {
-    backdrop,
     win,
     name: win.querySelector('#lotus-agent-name'),
     status: win.querySelector('#lotus-agent-status'),
@@ -237,13 +233,10 @@ function buildWindow() {
   els.name.textContent = settings.agentName;
   els.close = win.querySelector('#lotus-agent-close');
   els.close.addEventListener('click', closeWindow);
-  els.pill = win.querySelector('#lotus-agent-pill');
+  els.header = win.querySelector('#lotus-agent-header');
   els.max = win.querySelector('#lotus-agent-max');
-  els.max.addEventListener('click', toggleMaximize);
-  els.pill.style.touchAction = 'none';
-  els.pill.style.cursor = 'grab';
-  els.pill.addEventListener('pointerdown', onPillDragStart);
-  backdrop.addEventListener('click', closeWindow);
+  els.max.addEventListener('click', togglePanel);
+  els.header.addEventListener('pointerdown', onHeaderDragStart);
   els.send.addEventListener('click', onSend);
   els.input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -258,16 +251,16 @@ function buildWindow() {
 }
 
 function openWindow() {
-  els.backdrop.style.display = 'block';
+  if (isPanel) applyPanel();
+  else applyFloating();
   els.win.style.display = 'flex';
   renderMessages();
-  // Diagnostic line: sits where painting provably works (under
-  // the composer) and reports which code is actually running + what it
-  // built. If this line is absent, the update never reached the app.
+  // Diagnostic strip: version + message count + height + mode. If this
+  // strip is absent, the update never reached the app.
   const diag = els.win.querySelector('#lotus-agent-diag');
   if (diag) {
     const height = Math.round(els.win.getBoundingClientRect().height || 0);
-    diag.textContent = `v0.2.4 • رسائل: ${history.length} • حبة: ${els.pill ? 'موجودة' : 'مفقودة'} • ارتفاع: ${height}px`;
+    diag.textContent = `v0.3.0 • رسائل: ${history.length} • ارتفاع: ${height}px • ${isPanel ? 'لوحة' : 'عائمة'}`;
   }
   els.input.focus();
   getMemorySession().then((session) => {
@@ -276,27 +269,39 @@ function openWindow() {
 }
 
 function closeWindow() {
-  els.backdrop.style.display = 'none';
   els.win.style.display = 'none';
 }
 
-// ---- Full / floating window states (v0.2.4: opens full) ----
+function toggleWindow() {
+  if (els.win.style.display === 'flex') closeWindow();
+  else openWindow();
+}
 
-let isFull = true;
+// ---- Panel / floating states (v0.3.0: panel by default) ----
 
-function applyFull() {
+let isPanel = true;
+
+function measurePanelTop() {
+  const bar = document.querySelector('#top-settings-holder');
+  if (!bar) return 56;
+  const bottom = Math.round(bar.getBoundingClientRect().bottom || 0);
+  return bottom > 0 ? bottom : 56;
+}
+
+function applyPanel() {
   els.win.style.transform = 'none';
   els.win.style.left = '0';
-  els.win.style.top = '0';
   els.win.style.right = '0';
   els.win.style.bottom = '0';
+  els.win.style.top = measurePanelTop() + 'px';
   els.win.style.width = 'auto';
   els.win.style.height = 'auto';
   els.win.style.borderRadius = '0';
   els.win.style.boxShadow = 'none';
   els.win.style.resize = 'none';
+  els.win.style.zIndex = '3000';
   els.max.textContent = '⤢';
-  isFull = true;
+  isPanel = true;
 }
 
 function applyFloating() {
@@ -314,18 +319,19 @@ function applyFloating() {
   els.win.style.borderRadius = '24px';
   els.win.style.boxShadow = '0 0 60px rgba(0, 0, 0, 0.08), 0 8px 28px rgba(29, 31, 28, 0.09)';
   els.win.style.resize = 'both';
+  els.win.style.zIndex = '9992';
   els.max.textContent = '⛶';
-  isFull = false;
+  isPanel = false;
 }
 
-function toggleMaximize() {
-  if (isFull) applyFloating();
-  else applyFull();
+function togglePanel() {
+  if (isPanel) applyFloating();
+  else applyPanel();
 }
 
-function onPillDragStart(event) {
+function onHeaderDragStart(event) {
   if (event.target.closest('#lotus-agent-close, #lotus-agent-max')) return;
-  if (isFull) return;
+  if (isPanel) return;
   const rect = els.win.getBoundingClientRect();
   els.win.style.transform = 'none';
   els.win.style.left = rect.left + 'px';
@@ -628,7 +634,7 @@ function injectTopIcon() {
     svg.style.width = '26px';
     svg.style.height = '26px';
   }
-  btn.addEventListener('click', openWindow);
+  btn.addEventListener('click', toggleWindow);
   row.appendChild(btn);
   return true;
 }
@@ -649,7 +655,7 @@ function buildFabFallback() {
   fab.style.display = 'flex';
   fab.style.alignItems = 'center';
   fab.style.justifyContent = 'center';
-  fab.addEventListener('click', openWindow);
+  fab.addEventListener('click', toggleWindow);
   document.body.appendChild(fab);
 }
 
