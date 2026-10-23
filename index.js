@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.1.2
+// Lotus agent extension for Luker — v0.2.0
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -144,17 +144,28 @@ function buildWindow() {
   const win = document.createElement('div');
   win.className = 'lotus-agent-window';
   win.id = 'lotus-agent-window';
+  // Floating window (v0.2.0): centered panel, resizable from the corner
+  // (native resize handle), draggable by the pill row, maximizable.
+  // All geometry inline — never depends on style.css loading.
   win.style.position = 'fixed';
-  win.style.left = '12px';
-  win.style.right = '12px';
-  win.style.top = '12px';
-  win.style.bottom = '12px';
+  win.style.left = '50%';
+  win.style.top = '50%';
+  win.style.transform = 'translate(-50%, -50%)';
+  win.style.width = 'min(92vw, 520px)';
+  win.style.height = 'min(78vh, 660px)';
+  win.style.minWidth = '300px';
+  win.style.minHeight = '420px';
+  win.style.maxWidth = '96vw';
+  win.style.maxHeight = '92vh';
+  win.style.resize = 'both';
+  win.style.overflow = 'auto';
   win.style.zIndex = '9992';
   win.innerHTML = `
     <div class="lotus-agent-pill">
       <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
       <div class="lotus-agent-name" id="lotus-agent-name"></div>
       <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
+      <button class="lotus-agent-max" id="lotus-agent-max" title="تكبير / استعادة">⛶</button>
       <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
     </div>
     <div class="lotus-agent-messages" id="lotus-agent-messages"></div>
@@ -179,6 +190,12 @@ function buildWindow() {
   els.name.textContent = settings.agentName;
   els.close = win.querySelector('#lotus-agent-close');
   els.close.addEventListener('click', closeWindow);
+  els.pill = win.querySelector('.lotus-agent-pill');
+  els.max = win.querySelector('#lotus-agent-max');
+  els.max.addEventListener('click', toggleMaximize);
+  els.pill.style.touchAction = 'none';
+  els.pill.style.cursor = 'grab';
+  els.pill.addEventListener('pointerdown', onPillDragStart);
   backdrop.addEventListener('click', closeWindow);
   els.send.addEventListener('click', onSend);
   els.input.addEventListener('keydown', (event) => {
@@ -206,6 +223,65 @@ function openWindow() {
 function closeWindow() {
   els.backdrop.classList.remove('open');
   els.win.classList.remove('open');
+}
+
+// ---- Floating window: drag by the pill row, maximize / restore ----
+
+let savedRect = null;
+
+function toggleMaximize() {
+  if (savedRect) {
+    els.win.style.left = savedRect.left;
+    els.win.style.top = savedRect.top;
+    els.win.style.width = savedRect.width;
+    els.win.style.height = savedRect.height;
+    els.win.style.transform = savedRect.transform;
+    savedRect = null;
+    els.max.textContent = '⛶';
+    return;
+  }
+  savedRect = {
+    left: els.win.style.left,
+    top: els.win.style.top,
+    width: els.win.style.width,
+    height: els.win.style.height,
+    transform: els.win.style.transform,
+  };
+  els.win.style.transform = 'none';
+  els.win.style.left = '12px';
+  els.win.style.top = '12px';
+  els.win.style.width = 'calc(100vw - 24px)';
+  els.win.style.height = 'calc(100vh - 24px)';
+  els.max.textContent = '⤢';
+}
+
+function onPillDragStart(event) {
+  if (event.target.closest('#lotus-agent-close, #lotus-agent-max')) return;
+  if (savedRect) return;
+  const rect = els.win.getBoundingClientRect();
+  els.win.style.transform = 'none';
+  els.win.style.left = rect.left + 'px';
+  els.win.style.top = rect.top + 'px';
+  els.win.style.width = rect.width + 'px';
+  els.win.style.height = rect.height + 'px';
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const baseLeft = rect.left;
+  const baseTop = rect.top;
+  const width = rect.width;
+  const height = rect.height;
+  function onMove(move) {
+    const left = Math.min(Math.max(baseLeft + move.clientX - startX, -(width - 120)), window.innerWidth - 60);
+    const top = Math.min(Math.max(baseTop + move.clientY - startY, 0), window.innerHeight - 80);
+    els.win.style.left = left + 'px';
+    els.win.style.top = top + 'px';
+  }
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
 }
 
 function renderMessages() {
@@ -434,16 +510,16 @@ function buildSettingsDrawer() {
   });
 }
 
-// ---- Entry point: the agents' OWN icon up in the top bar ----
-// The top bar (#top-bar) is static HTML filled at runtime, so it exists
-// at load. If the app re-renders it and drops our button, the observer
-// puts it back. All geometry is inline: the icon must not depend on
-// style.css loading (the v0.1.0 lesson — a button that only exists in
-// the stylesheet is invisible when the stylesheet does not load).
+// ---- Entry point: the agents' OWN icon in the icons row ----
+// v0.1.2 put the button in #top-bar, but #top-bar is a separate empty
+// bar layered over the icons — so the lotus sat ON TOP of the first
+// icon. The real icons row is #top-settings-holder (flex, centered):
+// the button joins it as a flex item, beside the icons, not over one.
+// Fallback chain: icons row → #top-bar → floating button.
 
 function injectTopIcon() {
-  const topBar = document.querySelector('#top-bar');
-  if (!topBar) return false;
+  const row = document.querySelector('#top-settings-holder') || document.querySelector('#top-bar');
+  if (!row) return false;
   if (document.querySelector('#lotus-agent-top-icon')) return true;
   const btn = document.createElement('button');
   btn.id = 'lotus-agent-top-icon';
@@ -463,7 +539,7 @@ function injectTopIcon() {
     svg.style.height = '26px';
   }
   btn.addEventListener('click', openWindow);
-  topBar.appendChild(btn);
+  row.appendChild(btn);
   return true;
 }
 
@@ -489,12 +565,12 @@ function buildFabFallback() {
 
 function buildEntry() {
   if (injectTopIcon()) {
-    const topBar = document.querySelector('#top-bar');
-    if (topBar && typeof MutationObserver !== 'undefined') {
+    const row = document.querySelector('#top-settings-holder') || document.querySelector('#top-bar');
+    if (row && typeof MutationObserver !== 'undefined') {
       const observer = new MutationObserver(() => {
         if (!document.querySelector('#lotus-agent-top-icon')) injectTopIcon();
       });
-      observer.observe(topBar, { childList: true });
+      observer.observe(row, { childList: true });
     }
     return;
   }

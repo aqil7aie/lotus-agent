@@ -90,7 +90,8 @@
   opacity: 0.7;
 }
 
-.lotus-agent-close {
+.lotus-agent-close,
+.lotus-agent-max {
   background: none;
   border: none;
   color: inherit;
