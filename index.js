@@ -1,4 +1,4 @@
-// Lotus agent extension for Luker — v0.3.1
+// Lotus agent extension for Luker — v0.4.0
 // A real agent with its own chat window, connected to the Memory Graph.
 // Spec (Aqil): extension, not a fork; Lotus window, not ST's window;
 // the agents get their OWN icon up in the top bar (not a floating
@@ -17,6 +17,7 @@ const HISTORY_LIMIT = 100;
 const CONTEXT_WINDOW = 20;
 
 const LOTUS_SVG = `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="#e8730c"><ellipse cx="24" cy="26" rx="6" ry="12"/><ellipse cx="12" cy="28" rx="5" ry="10" transform="rotate(-28 12 28)"/><ellipse cx="36" cy="28" rx="5" ry="10" transform="rotate(28 36 28)"/><ellipse cx="6" cy="32" rx="4" ry="8" transform="rotate(-48 6 32)"/><ellipse cx="42" cy="32" rx="4" ry="8" transform="rotate(48 42 32)"/></g></svg>`;
+const LOTUS_SVG_WHITE = LOTUS_SVG.replace('fill="#e8730c"', 'fill="#ffffff"');
 
 const defaultSettings = {
   agentName: 'Lotus',
@@ -70,6 +71,8 @@ function escapeHtml(text) {
 function setMemoryStatus(text) {
   // Command readout: agent + connection profile + memory, live.
   if (els.status) els.status.textContent = `${text} • ${settings.chatPreset || 'بدون بروفايل'}`;
+  // Chatwin dot: green while the memory session is live, muted else.
+  if (els.dot) els.dot.style.background = text.includes('متصلة') ? '#3f9e4d' : '#70746c';
 }
 
 // ---- Memory Graph (session facade; never import memory-graph files) ----
@@ -136,15 +139,13 @@ function buildWindow() {
   const win = document.createElement('div');
   win.className = 'lotus-agent-window';
   win.id = 'lotus-agent-window';
-  // v0.3.0 frame — TauriTavern Copilot measurements, Lotus colors.
-  // Copilot does not float and does not go fullscreen: it takes over a
-  // panel BELOW the host's top bar (toolbar kept, mobile insets kept),
-  // 100dvh tall, flex column. So this window is a PANEL by default:
-  // it starts below Luker's top bar (measured at open, never guessed),
-  // so its top row can never hide under the status bar or top bar —
-  // the exact failure of every floating/full version before it.
-  // A toggle still shrinks it to a floating card (size control kept).
-  // All geometry inline — never depends on style.css loading.
+  // v0.4.0: the box IS Lotus's own chatwin (from lotus__9__11S.html on
+  // Drive, same file Aqil runs on his phone) — not Copilot's header,
+  // not an invented box. Placement stays v0.3.1 (panel below Luker's
+  // top bar, measured at open, z 9992); only the LOOK is now pure
+  // Lotus: floating white id-pill + 40px corner buttons over the
+  // conversation, absolute messages (92px top / 150px bottom), and the
+  // 28px composer at the bottom. All styles inline, as always.
   win.style.position = 'fixed';
   win.style.left = '0';
   win.style.right = '0';
@@ -159,70 +160,71 @@ function buildWindow() {
   win.style.maxHeight = 'none';
   win.style.resize = 'none';
   win.style.overflow = 'hidden';
-  // v0.3.1: back above everything (9992, like the proven floating
-  // window). v0.3.0 dropped this to 3000 to sit under the top bar —
-  // but Luker's own layers live at 3000-3005, so the panel sank under
-  // them and nothing showed. The panel still starts BELOW the bar
-  // (measured top), so it never overlaps the bar anyway.
   win.style.zIndex = '9992';
   win.style.display = 'none';
-  win.style.flexDirection = 'column';
   win.style.background = '#eef0ee';
   win.style.color = '#1d1f1c';
+  win.style.borderInline = '1px solid rgba(29,31,28,0.09)';
   win.style.borderRadius = '0';
-  win.style.boxShadow = 'none';
+  win.style.boxShadow = '0 0 60px rgba(0,0,0,0.08)';
   win.innerHTML = `
-    <div class="lotus-agent-header" id="lotus-agent-header">
-      <div class="lotus-agent-brand">
-        <div class="lotus-agent-avatar">${LOTUS_SVG}</div>
-        <div class="lotus-agent-name" id="lotus-agent-name"></div>
-        <div class="lotus-agent-status" id="lotus-agent-status">الذاكرة: ...</div>
+    <div class="lotus-agent-float-top" id="lotus-agent-float-top">
+      <div class="lotus-agent-id-pill" id="lotus-agent-pill">
+        <div class="lotus-agent-avatar">${LOTUS_SVG_WHITE}</div>
+        <div class="lotus-agent-head-meta">
+          <div class="lotus-agent-name" id="lotus-agent-name"></div>
+          <div class="lotus-agent-head-status"><span class="lotus-agent-dot" id="lotus-agent-dot"></span><span id="lotus-agent-status">الذاكرة: ...</span></div>
+        </div>
       </div>
-      <div class="lotus-agent-actions">
-        <button class="lotus-agent-max" id="lotus-agent-max" title="عائمة / لوحة">⤢</button>
-        <button class="lotus-agent-close" id="lotus-agent-close" title="إغلاق">×</button>
+      <div class="lotus-agent-float-actions">
+        <button class="lotus-agent-float-btn" id="lotus-agent-max" title="عائمة / لوحة">⤢</button>
+        <button class="lotus-agent-float-btn" id="lotus-agent-close" title="إغلاق">×</button>
       </div>
     </div>
     <div class="lotus-agent-messages" id="lotus-agent-messages"></div>
-    <div class="lotus-agent-bottom">
-      <div class="lotus-agent-status-strip" id="lotus-agent-diag"></div>
-      <div class="lotus-agent-composer">
-        <textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea>
+    <div class="lotus-agent-composer-zone">
+      <div class="lotus-agent-diag" id="lotus-agent-diag"></div>
+      <div class="lotus-agent-composer" id="lotus-agent-composer">
+        <div class="lotus-agent-field"><textarea class="lotus-agent-input" id="lotus-agent-input" rows="1" placeholder="اكتب رسالتك..."></textarea></div>
         <button class="lotus-agent-send" id="lotus-agent-send" title="إرسال">➤</button>
       </div>
     </div>`;
-  // Copilot measurements, inline: header 13/12/11/16 + bottom border,
-  // 30px action buttons; messages 24/20/28, 22px gaps; bottom 0/12/8;
-  // composer 17px radius, 12/12/9 padding; status strip above composer.
-  const header = win.querySelector('#lotus-agent-header');
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;flex:0 0 auto;padding:13px 12px 11px 16px;border-bottom:1px solid rgba(29,31,28,0.09);flex-shrink:0;cursor:grab;touch-action:none;';
-  const brand = win.querySelector('.lotus-agent-brand');
-  brand.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0;flex:1;overflow:hidden;';
-  const avatar = brand.querySelector('.lotus-agent-avatar');
-  avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#fdf6ec;border:1px solid rgba(29,31,28,0.09);display:flex;align-items:center;justify-content:center;flex-shrink:0;';
-  avatar.querySelector('svg').style.cssText = 'width:20px;height:20px;';
-  const brandName = win.querySelector('#lotus-agent-name');
-  brandName.style.cssText = 'font-weight:600;font-size:16px;color:#1d1f1c;white-space:nowrap;';
-  const brandStatus = win.querySelector('#lotus-agent-status');
-  brandStatus.style.cssText = 'font-size:12px;color:#70746c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-  const actions = win.querySelector('.lotus-agent-actions');
-  actions.style.cssText = 'display:flex;gap:2px;flex-shrink:0;';
+  // Chatwin measurements, inline, verbatim from 9.11S.
+  const floatTop = win.querySelector('#lotus-agent-float-top');
+  floatTop.style.cssText = 'position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;right:12px;width:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:5;pointer-events:none;';
+  const pill = win.querySelector('#lotus-agent-pill');
+  pill.style.cssText = 'pointer-events:auto;display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);padding:5px 6px 5px 14px;cursor:grab;touch-action:none;';
+  const avatar = pill.querySelector('.lotus-agent-avatar');
+  avatar.style.cssText = 'width:36px;height:36px;border-radius:50%;background:#bc451f;display:grid;place-items:center;flex-shrink:0;';
+  avatar.querySelector('svg').style.cssText = 'width:19px;height:19px;';
+  const headMeta = win.querySelector('.lotus-agent-head-meta');
+  headMeta.style.cssText = 'min-width:0;';
+  const pillName = win.querySelector('#lotus-agent-name');
+  pillName.style.cssText = 'font-weight:700;font-size:15.5px;line-height:1.25;color:#1d1f1c;white-space:nowrap;';
+  const headStatus = win.querySelector('.lotus-agent-head-status');
+  headStatus.style.cssText = 'font-size:12px;color:#70746c;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+  const dot = win.querySelector('#lotus-agent-dot');
+  dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:#70746c;display:inline-block;flex-shrink:0;';
+  const actions = win.querySelector('.lotus-agent-float-actions');
+  actions.style.cssText = 'display:flex;gap:8px;pointer-events:auto;';
   const maxBtn = win.querySelector('#lotus-agent-max');
   const closeBtn = win.querySelector('#lotus-agent-close');
-  maxBtn.style.cssText = 'width:30px;height:30px;padding:0;color:#70746c;background:transparent;border:none;border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:18px;flex-shrink:0;';
-  closeBtn.style.cssText = 'width:30px;height:30px;padding:0;color:#70746c;background:transparent;border:none;border-radius:8px;cursor:pointer;display:grid;place-items:center;font-size:18px;flex-shrink:0;';
-  const bottom = win.querySelector('.lotus-agent-bottom');
-  bottom.style.cssText = 'flex:0 0 auto;padding:0 12px 8px;flex-shrink:0;';
-  const strip = win.querySelector('#lotus-agent-diag');
-  strip.style.cssText = 'display:flex;align-items:center;gap:9px;margin:0 -12px 7px;padding:9px 13px 8px;font-size:12.8px;color:#70746c;border-bottom:1px solid rgba(29,31,28,0.08);';
-  const composer = win.querySelector('.lotus-agent-composer');
-  composer.style.cssText = 'display:flex;gap:4px;align-items:flex-end;background:#ffffff;border:1px solid rgba(29,31,28,0.10);border-radius:17px;padding:12px 12px 9px;box-shadow:0 1px 3px rgba(0,0,0,0.15),inset 0 1px 0 rgba(29,31,28,0.03);';
-  const input = win.querySelector('#lotus-agent-input');
-  input.style.cssText = 'flex:1;min-width:0;resize:none;border:none;outline:none;background:transparent;color:#1d1f1c;padding:8px 9px;font-size:16px;line-height:24px;max-height:120px;';
-  const send = win.querySelector('#lotus-agent-send');
-  send.style.cssText = 'border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;background:#2f7cf6;color:#ffffff;font-size:18px;flex-shrink:0;display:grid;place-items:center;';
+  maxBtn.style.cssText = 'pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(29,31,28,0.09);background:#ffffff;color:#70746c;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);display:grid;place-items:center;cursor:pointer;font-size:19px;flex-shrink:0;padding:0;';
+  closeBtn.style.cssText = 'pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(29,31,28,0.09);background:#ffffff;color:#70746c;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);display:grid;place-items:center;cursor:pointer;font-size:19px;flex-shrink:0;padding:0;';
   const messages = win.querySelector('#lotus-agent-messages');
-  messages.style.cssText = 'flex:1;overflow-y:auto;padding:24px 20px 28px;display:flex;flex-direction:column;gap:22px;min-height:0;';
+  messages.style.cssText = 'position:absolute;inset:0;overflow-y:auto;padding:92px 18px 150px;display:flex;flex-direction:column;gap:18px;scroll-behavior:smooth;overscroll-behavior:contain;';
+  const zone = win.querySelector('.lotus-agent-composer-zone');
+  zone.style.cssText = 'position:absolute;bottom:0;left:0;right:0;padding:8px 12px calc(12px + env(safe-area-inset-bottom));background:transparent;z-index:6;';
+  const diag = win.querySelector('#lotus-agent-diag');
+  diag.style.cssText = 'font-size:12px;color:#70746c;text-align:center;padding:0 12px 6px;';
+  const composer = win.querySelector('#lotus-agent-composer');
+  composer.style.cssText = 'box-sizing:border-box;background:#ffffff;border:1px solid #ffffff;border-radius:28px;box-shadow:0 8px 28px rgba(29,31,28,0.09),0 1px 6px rgba(29,31,28,0.05);display:flex;flex-wrap:wrap;align-items:flex-end;gap:2px 4px;padding:6px;';
+  const field = win.querySelector('.lotus-agent-field');
+  field.style.cssText = 'flex:1;min-width:0;display:flex;align-items:center;overflow:hidden;';
+  const input = win.querySelector('#lotus-agent-input');
+  input.style.cssText = 'font:inherit;font-size:16px;line-height:24px;width:100%;border:none;outline:none;resize:none;background:transparent;color:#1d1f1c;padding:8px 4px;margin:0;overflow-y:hidden;max-height:144px;';
+  const send = win.querySelector('#lotus-agent-send');
+  send.style.cssText = 'border:none;border-radius:50%;width:40px;height:40px;cursor:pointer;background:#2f7cf6;color:#ffffff;font-size:18px;flex-shrink:0;display:grid;place-items:center;opacity:0;transform:scale(0.6);pointer-events:none;transition:opacity 0.22s ease,transform 0.3s cubic-bezier(0.22,1,0.36,1),background 0.15s ease;';
 
   document.body.appendChild(win);
 
@@ -230,18 +232,20 @@ function buildWindow() {
     win,
     name: win.querySelector('#lotus-agent-name'),
     status: win.querySelector('#lotus-agent-status'),
+    dot: win.querySelector('#lotus-agent-dot'),
     messages: win.querySelector('#lotus-agent-messages'),
     input: win.querySelector('#lotus-agent-input'),
     send: win.querySelector('#lotus-agent-send'),
+    composer: win.querySelector('#lotus-agent-composer'),
   };
 
   els.name.textContent = settings.agentName;
   els.close = win.querySelector('#lotus-agent-close');
   els.close.addEventListener('click', closeWindow);
-  els.header = win.querySelector('#lotus-agent-header');
+  els.pill = win.querySelector('#lotus-agent-pill');
   els.max = win.querySelector('#lotus-agent-max');
   els.max.addEventListener('click', togglePanel);
-  els.header.addEventListener('pointerdown', onHeaderDragStart);
+  els.pill.addEventListener('pointerdown', onHeaderDragStart);
   els.send.addEventListener('click', onSend);
   els.input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -251,7 +255,14 @@ function buildWindow() {
   });
   els.input.addEventListener('input', () => {
     els.input.style.height = 'auto';
-    els.input.style.height = Math.min(els.input.scrollHeight, 120) + 'px';
+    els.input.style.height = Math.min(els.input.scrollHeight, 144) + 'px';
+    // Chatwin send: hidden while empty, appears while typing; the
+    // composer rounds to 24px once the field goes multiline.
+    const hasText = els.input.value.trim().length > 0;
+    els.send.style.opacity = hasText ? '1' : '0';
+    els.send.style.transform = hasText ? 'scale(1)' : 'scale(0.6)';
+    els.send.style.pointerEvents = hasText ? 'auto' : 'none';
+    els.composer.style.borderRadius = els.input.scrollHeight > 24 ? '24px' : '28px';
   });
 }
 
@@ -272,7 +283,7 @@ function openWindow() {
   const diag = els.win.querySelector('#lotus-agent-diag');
   if (diag) {
     const height = Math.round(els.win.getBoundingClientRect().height || 0);
-    diag.textContent = `v0.3.1 • رسائل: ${history.length} • ارتفاع: ${height}px • ${isPanel ? 'لوحة' : 'عائمة'}`;
+    diag.textContent = `v0.4.0 • رسائل: ${history.length} • ارتفاع: ${height}px • ${isPanel ? 'لوحة' : 'عائمة'}`;
   }
   els.input.focus();
   getMemorySession().then((session) => {
@@ -318,7 +329,8 @@ function applyPanel() {
   els.win.style.width = 'auto';
   els.win.style.height = 'auto';
   els.win.style.borderRadius = '0';
-  els.win.style.boxShadow = 'none';
+  els.win.style.borderInline = '1px solid rgba(29,31,28,0.09)';
+  els.win.style.boxShadow = '0 0 60px rgba(0,0,0,0.08)';
   els.win.style.resize = 'none';
   els.win.style.zIndex = '9992';
   els.max.textContent = '⤢';
@@ -398,9 +410,9 @@ function renderMessages() {
       div.style.cssText = 'display:flex;gap:10px;align-self:flex-start;max-width:100%;';
       const avatar = document.createElement('div');
       avatar.className = 'lotus-agent-mini-avatar';
-      avatar.innerHTML = LOTUS_SVG;
-      avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#fdf6ec;border:1px solid rgba(29,31,28,0.09);display:grid;place-items:center;flex-shrink:0;margin-top:2px;';
-      avatar.querySelector('svg').style.cssText = 'width:20px;height:20px;';
+      avatar.innerHTML = LOTUS_SVG_WHITE;
+      avatar.style.cssText = 'width:28px;height:28px;border-radius:50%;background:#bc451f;display:grid;place-items:center;flex-shrink:0;margin-top:2px;';
+      avatar.querySelector('svg').style.cssText = 'width:15px;height:15px;';
       const content = document.createElement('div');
       content.className = 'lotus-agent-content';
       content.style.cssText = 'min-width:0;';
@@ -418,7 +430,7 @@ function renderMessages() {
       btn.className = 'lotus-agent-remember';
       btn.textContent = msg.saved ? 'تم الحفظ' : 'تذكّر هذا';
       btn.disabled = !!msg.saved;
-      btn.style.cssText = 'display:inline-block;margin-top:8px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;cursor:pointer;font-size:12px;color:#70746c;padding:4px 12px;';
+      btn.style.cssText = 'display:inline-block;margin-top:8px;background:#ffffff;border:1px solid rgba(29,31,28,0.09);border-radius:999px;box-shadow:0 4px 14px rgba(29,31,28,0.08);cursor:pointer;font-size:13px;color:#1d1f1c;padding:7px 14px;';
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         btn.textContent = 'جارٍ الحفظ...';
